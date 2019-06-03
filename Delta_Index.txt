@@ -1,120 +1,121 @@
 ################Delta Index
-setwd('C:/Users/Lab-User/Desktop/Delta_Index')
-Data_Or <- read.csv('Data_Model3.csv', header= TRUE)
+#setwd('C:/Users/Lab-User/Desktop/Delta_Index')
+#Data_Or <- read.csv('Data_Model3.csv', header= TRUE)
 
+#The following function determines the distance between two distributions
 Distance <-function (Data_Original, std, average_prior){
-#Determined the min and max of the data set
-Low_data_point=min(Data_Original, na.rm = TRUE)
-High_data_point=max(Data_Original, na.rm = TRUE)
+	#Determined the min and max of the data set
+	Low_data_point=min(Data_Original, na.rm = TRUE)
+	High_data_point=max(Data_Original, na.rm = TRUE)
 
-#Devided the bin into 12 intervals
-Steps <-(High_data_point - Low_data_point)/12
+	#Devided the bin into 12 intervals
+	Steps <-(High_data_point - Low_data_point)/12
 
-#std<-c(0.126)
-#average_prior<-c(0.148)
-dummy_value<-qnorm(0.001)*std+average_prior
+	#std<-c(0.126)
+	#average_prior<-c(0.148)
+	dummy_value<-qnorm(0.001)*std+average_prior
 
-Data<-seq(Low_data_point, High_data_point, Steps)
+	Data<-seq(Low_data_point, High_data_point, Steps)
 
-#Determine the first value using Prior knowledge
+	#Determine the first value using Prior knowledge
 	
-#complete_data<-c(dummy_value,data[,1])
-#complete_data<-matrix(complete_data,length(complete_data),1)
-Data<-data.matrix(Data)
-#Determine the z-score using the bin values, prior mean and prior SD
-z_score<-matrix(NA,length(Data),1)
-for (i in 1:length(Data)){
-z_score[i,1]<-(Data[i,1]-average_prior)/std
+	#complete_data<-c(dummy_value,data[,1])
+	#complete_data<-matrix(complete_data,length(complete_data),1)
+	Data<-data.matrix(Data)
+	#Determine the z-score using the bin values, prior mean and prior SD
+	z_score<-matrix(NA,length(Data),1)
+	for (i in 1:length(Data)){
+		z_score[i,1]<-(Data[i,1]-average_prior)/std
+	}
+
+	#Determine p-cummulative
+	p_cummulative<-pnorm(z_score)
+
+	#Determine the p-values
+	p_value<-matrix(NA,length(Data),1)
+	p_value[1,1]<-p_cummulative[1,1]
+	for (i in 2:length(Data)){
+		p_value[i,1]<-p_cummulative[i,1]-p_cummulative[i-1,1]
+	}
+
+	data_list<-unlist(Data_Original)
+
+	#Determined the frequencies associated with the bins
+	Frequencies <- as.data.frame(table(cut(data_list, Data[,1])))$Freq
+
+	if (sum(Frequencies)==5000){
+		Frequency <- 0
+			} else {
+		Frequency <- 5000 - sum(Frequencies)
+	}
+
+	Frequencies<- rbind(Frequency, Frequencies)
+	Frequencies<- cbind(Frequency, Frequencies)
+
+	#data_frequencies<- cbind(Data[,1],Frequencies[,2])
+
+	#Determine the percent frequency or percent observed
+	percentage<-matrix(NA,length(Frequencies[2,]),1)
+	for (i in 1:length(Frequencies[2,])){
+		percentage[i,1]<-(Frequencies[2,i]/5000)*100
+	}
+
+	#Determine the cumulative percentage
+	cummulative_percentage<-matrix(NA,length(percentage),1)
+	cummulative_percentage[1,1]<-percentage[1,1]
+	for (i in 2:length(cummulative_percentage)){
+		cummulative_percentage[i,1]<-percentage[i,1] + cummulative_percentage[i-1,1]
+	}
+
+	#Determine the p(theta|D)
+	p_thetaD<-matrix(NA,length(cummulative_percentage),1)
+
+	if (Data[1,1] < dummy_value){
+		p_thetaD[1,1] <- 0.0000000001} else {
+			p_thetaD[1,1]<-percentage[1,1]/(100*(Data[1,1]-dummy_value))
+	}
+
+	for (i in 2:length(cummulative_percentage)){
+		p_thetaD[i,1]<-percentage[i,1]/(100*(Data[i,1]-Data[i-1,1]))
+	}
+
+	#Determine P(theta)
+	p_theta<-matrix(NA,length(p_thetaD),1)
+	p_theta[1,1]<-p_value[1,1]/abs(Data[1,1]-dummy_value)
+	for (i in 2:length(p_thetaD)){
+		p_theta[i,1]<-p_value[i,1]/abs(Data[i,1]-Data[i-1,1])
+	}
+
+	#Half D---Almost there
+	Half_D<-matrix(NA,length(p_theta),1)
+	Half_D[1,1]<-	(p_thetaD[1,1]*log10(2*p_thetaD[1,1]/(p_thetaD[1,1]+p_theta[1,1]))+p_theta[1,1]*log10(2*p_theta[1,1]/(p_thetaD[1,1]+p_theta[1,1])))*abs(Data[1,1]-dummy_value)
+	for (i in 2:length(p_theta)){
+		Half_D[i,1]<-(p_thetaD[i,1]*log10(2*p_thetaD[i,1]/(p_thetaD[i,1]+p_theta[i,1]))+p_theta[i,1]*log10(2*p_theta[i,1]/(p_thetaD[i,1]+p_theta[i,1])))*abs(Data[i,1]-Data[i-1,1])
+	}
+
+	Half_D[is.na(Half_D)] <- 0.0000000001
+
+	delta_index<-sqrt(sum(Half_D))
+	upper_Bound<- sqrt(2*log10(2))
+	lower_Bound<- c(0)
+	a <- delta_index/upper_Bound
+
+	print(c(a,delta_index))
+
 }
 
-#Determine p-cummulative
-p_cummulative<-pnorm(z_score)
+#Priors <- read.csv('Priors_Model3.csv', header= TRUE)
 
-#Determine the p-values
-p_value<-matrix(NA,length(Data),1)
-p_value[1,1]<-p_cummulative[1,1]
-for (i in 2:length(Data)){
-p_value[i,1]<-p_cummulative[i,1]-p_cummulative[i-1,1]
-}
-
-data_list<-unlist(Data_Original)
-
-#Determined the frequencies associated with the bins
-Frequencies <- as.data.frame(table(cut(data_list, Data[,1])))$Freq
-
-if (sum(Frequencies)==5000){
-Frequency <- 0
-} else {
-Frequency <- 5000 - sum(Frequencies)
-}
-
-Frequencies<- rbind(Frequency, Frequencies)
-Frequencies<- cbind(Frequency, Frequencies)
-
-#data_frequencies<- cbind(Data[,1],Frequencies[,2])
-
-#Determine the percent frequency or percent observed
-percentage<-matrix(NA,length(Frequencies[2,]),1)
-for (i in 1:length(Frequencies[2,])){
-percentage[i,1]<-(Frequencies[2,i]/5000)*100
-}
-
-#Determine the cumulative percentage
-cummulative_percentage<-matrix(NA,length(percentage),1)
-cummulative_percentage[1,1]<-percentage[1,1]
-for (i in 2:length(cummulative_percentage)){
-cummulative_percentage[i,1]<-percentage[i,1] + cummulative_percentage[i-1,1]
-}
-
-#Determine the p(theta|D)
-p_thetaD<-matrix(NA,length(cummulative_percentage),1)
-
-if (Data[1,1] < dummy_value){
-p_thetaD[1,1] <- 0.0000000001} else {
-p_thetaD[1,1]<-percentage[1,1]/(100*(Data[1,1]-dummy_value))
-}
-
-for (i in 2:length(cummulative_percentage)){
-p_thetaD[i,1]<-percentage[i,1]/(100*(Data[i,1]-Data[i-1,1]))
-}
-
-#Determine P(theta)
-p_theta<-matrix(NA,length(p_thetaD),1)
-p_theta[1,1]<-p_value[1,1]/abs(Data[1,1]-dummy_value)
-for (i in 2:length(p_thetaD)){
-p_theta[i,1]<-p_value[i,1]/abs(Data[i,1]-Data[i-1,1])
-}
-
-#Half D---Almost there
-Half_D<-matrix(NA,length(p_theta),1)
-Half_D[1,1]<-(p_thetaD[1,1]*log10(2*p_thetaD[1,1]/(p_thetaD[1,1]+p_theta[1,1]))+p_theta[1,1]*log10(2*p_theta[1,1]/(p_thetaD[1,1]+p_theta[1,1])))*abs(Data[1,1]-dummy_value)
-for (i in 2:length(p_theta)){
-Half_D[i,1]<-(p_thetaD[i,1]*log10(2*p_thetaD[i,1]/(p_thetaD[i,1]+p_theta[i,1]))+p_theta[i,1]*log10(2*p_theta[i,1]/(p_thetaD[i,1]+p_theta[i,1])))*abs(Data[i,1]-Data[i-1,1])
-}
-
-Half_D[is.na(Half_D)] <- 0.0000000001
-
-delta_index<-sqrt(sum(Half_D))
-upper_Bound<- sqrt(2*log10(2))
-lower_Bound<- c(0)
-a <- delta_index/upper_Bound
-
-print(c(a,delta_index))
-
-}
-
-Priors <- read.csv('Priors_Model3.csv', header= TRUE)
-
-Results_Model1<-matrix(NA,dim(Data_Or)[2],2)
-Results_Model1[1,]<-Distance(Data_Original = Data_Or[1], std= Priors[1,3], average_prior= Priors[1,2])
-Results_Model1[2,]<-Distance(Data_Original = Data_Or[2], std= Priors[2,3], average_prior= Priors[2,2])
-Results_Model1[3,]<-Distance(Data_Original = Data_Or[3], std= Priors[3,3], average_prior= Priors[3,2])
-Results_Model1[4,]<-Distance(Data_Original = Data_Or[4], std= Priors[4,3], average_prior= Priors[4,2])
-Results_Model1[5,]<-Distance(Data_Original = Data_Or[5], std= Priors[5,3], average_prior= Priors[5,2])
-Results_Model1[6,]<-Distance(Data_Original = Data_Or[6], std= Priors[6,3], average_prior= Priors[6,2])
-Results_Model1[7,]<-Distance(Data_Original = Data_Or[7], std= Priors[7,3], average_prior= Priors[7,2])
-Results_Model1[8,]<-Distance(Data_Original = Data_Or[8], std= Priors[8,3], average_prior= Priors[8,2])
-Results_Model1[9,]<-Distance(Data_Original = Data_Or[9], std= Priors[9,3], average_prior= Priors[9,2])
-Results_Model1[10,]<-Distance(Data_Original = Data_Or[10], std= Priors[10,3], average_prior= Priors[10,2])
-Results_Model1[11,]<-Distance(Data_Original = Data_Or[11], std= Priors[11,3], average_prior= Priors[11,2])
-Results_Model1[12,]<-Distance(Data_Original = Data_Or[12], std= Priors[12,3], average_prior= Priors[12,2])
+#Results_Model1<-matrix(NA,dim(Data_Or)[2],2)
+#Results_Model1[1,]<-Distance(Data_Original = Data_Or[1], std= Priors[1,3], average_prior= Priors[1,2])
+#Results_Model1[2,]<-Distance(Data_Original = Data_Or[2], std= Priors[2,3], average_prior= Priors[2,2])
+#Results_Model1[3,]<-Distance(Data_Original = Data_Or[3], std= Priors[3,3], average_prior= Priors[3,2])
+#Results_Model1[4,]<-Distance(Data_Original = Data_Or[4], std= Priors[4,3], average_prior= Priors[4,2])
+#Results_Model1[5,]<-Distance(Data_Original = Data_Or[5], std= Priors[5,3], average_prior= Priors[5,2])
+#Results_Model1[6,]<-Distance(Data_Original = Data_Or[6], std= Priors[6,3], average_prior= Priors[6,2])
+#Results_Model1[7,]<-Distance(Data_Original = Data_Or[7], std= Priors[7,3], average_prior= Priors[7,2])
+#Results_Model1[8,]<-Distance(Data_Original = Data_Or[8], std= Priors[8,3], average_prior= Priors[8,2])
+#Results_Model1[9,]<-Distance(Data_Original = Data_Or[9], std= Priors[9,3], average_prior= Priors[9,2])
+#Results_Model1[10,]<-Distance(Data_Original = Data_Or[10], std= Priors[10,3], average_prior= Priors[10,2])
+#Results_Model1[11,]<-Distance(Data_Original = Data_Or[11], std= Priors[11,3], average_prior= Priors[11,2])
+#Results_Model1[12,]<-Distance(Data_Original = Data_Or[12], std= Priors[12,3], average_prior= Priors[12,2])
